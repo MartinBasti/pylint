@@ -586,3 +586,37 @@ Basic checker Messages
             str(less_basic), expected_beginning + expected_middle + expected_end
         )
         self.assertEqual(repr(less_basic), repr(basic))
+
+
+class TestMagicMethodsRvals(CheckerTestCase):
+    CHECKER_CLASS = base.BasicChecker
+
+    def test_repr_invalid_generator(self):
+        function_defs = astroid.extract_node(
+            """
+            class Test(object):
+                def __repr__(self):  #@
+                    yield 'Test'
+            """
+        )
+        message = Message(
+            "magic-method-generator-not-allowed",
+            node=function_defs,
+        )
+        with self.assertAddsMessages(message):
+            self.checker.visit_functiondef(function_defs)
+
+    def test_repr_invalid_type(self):
+        function_defs = astroid.extract_node(
+            """
+            class Test(object):
+                def __repr__(self):  #@
+                    return 1
+            """
+        )
+        message = Message(
+            "magic-method-wrong-return-type",
+            node=function_defs,
+        )
+        with self.assertAddsMessages(message):
+            self.checker.visit_functiondef(function_defs)

@@ -1004,6 +1004,16 @@ class BasicChecker(_BasicChecker):
             'print("value: {}".format(123)). This might not be what the user '
             "intended to do.",
         ),
+        "W0166": (
+            "magic method returns value of wrong type",
+            "magic-method-wrong-return-type",
+            "Something.",
+        ),
+        "W0167": (
+            "magic method is generator",
+            "magic-method-generator-not-allowed",
+            "Something.",
+        ),
     }
 
     reports = (("RP0101", "Statistics by type", report_by_type_stats),)
@@ -1241,8 +1251,35 @@ class BasicChecker(_BasicChecker):
         """
         self.stats["method" if node.is_method() else "function"] += 1
         self._check_dangerous_default(node)
+        self._check_return_type_magic_methods(node)
 
     visit_asyncfunctiondef = visit_functiondef
+
+    def _check_return_type_magic_methods(self, node):
+        definitions = [
+            {
+                'name': '__repr__',
+                'generator': False,
+                'expected_type': str,
+            }
+        ]
+
+        def _check(node, m_name, generator, exc_type):
+            if node.is_method() and node.name == m_name:
+                if not generator and node.is_generator():
+                    self.add_message("magic-method-generator-not-allowed", node=node)
+                else:
+                    # checks for max returns, branch, return in magic methods
+                    returns = node.nodes_of_class(
+                        astroid.Return, skip_klass=(astroid.FunctionDef, astroid.ClassDef)
+                    )
+                    values = [r.value for r in returns]
+                    # Are we returning anything but None from constructors
+                    if any(v for v in values if not utils.is_none(v)):
+                        self.add_message("magic-method-wrong-return-type", node=node)
+
+        for magic_method in definitions:
+            _check(node, magic_method['name'], magic_method['generator'], magic_method['expected_type'])
 
     def _check_dangerous_default(self, node):
         # check for dangerous default values as arguments
